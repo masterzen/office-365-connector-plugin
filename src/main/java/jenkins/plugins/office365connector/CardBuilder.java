@@ -13,15 +13,21 @@
  */
 package jenkins.plugins.office365connector;
 
-import java.util.List;
-
+import hudson.model.Cause;
 import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
+import hudson.tasks.test.AbstractTestResultAction;
 import jenkins.plugins.office365connector.model.Card;
 import jenkins.plugins.office365connector.model.FactDefinition;
 import jenkins.plugins.office365connector.model.Section;
 import jenkins.plugins.office365connector.workflow.StepParameters;
+
+import java.util.Collections;
+import java.util.List;
+
+import static hudson.Util.getTimeSpanString;
+import static java.util.stream.Collectors.joining;
 
 /**
  * @author Damian Szczepanik (damianszczepanik@github)
@@ -48,7 +54,7 @@ public class CardBuilder {
         factsBuilder.addDevelopers();
         factsBuilder.addUserFacts(factDefinitions);
 
-        Section section = buildSection();
+        Section section = buildSection(statusName, "");
 
         String summary = getDisplayName() + ": Build " + getRunName();
         Card card = new Card(summary, section);
@@ -78,13 +84,15 @@ public class CardBuilder {
                 factsBuilder.addFailingSinceBuild(failingSinceBuild.getNumber());
             }
         }
+
         factsBuilder.addStatus(status);
         factsBuilder.addRemarks();
         factsBuilder.addCommitters();
         factsBuilder.addDevelopers();
         factsBuilder.addUserFacts(factDefinitions);
 
-        Section section = buildSection();
+        String duration = getDuration(isRepeatedFailure);
+        Section section = buildSection(status, duration);
 
         Card card = new Card(summary, section);
         card.setThemeColor(getCardThemeColor(lastResult));
@@ -95,17 +103,75 @@ public class CardBuilder {
 
     private static String getCardThemeColor(Result result) {
         if (result == Result.SUCCESS) {
-            // Return green for success
-            return "#00FF00";
+            // Return slack green for success
+            return "#2eb886";
+        } else if (result == Result.FAILURE) {
+            // Return slack red for failures
+            return "#a3020c";
         } else {
             return result.color.getHtmlBaseColor();
         }
     }
 
-    private Section buildSection() {
-        String activityTitle = "Notification from " + getEscapedDisplayName();
-        String activitySubtitle = "Latest status of build " + getRunName();
-        return new Section(activityTitle, activitySubtitle, factsBuilder.collect());
+    private Section buildSection(String status, String duration) {
+        String durStr = "";
+        if (duration != null && !duration.isEmpty()) {
+            durStr = " after " + duration;
+        }
+        String activityTitle = "_" + getEscapedDisplayName() + "_ - " + getRunName() + " *" + status + "*" + durStr;
+        String activitySubtitle = getTestSummary() + "\\n\\n" + getCauseSummary();
+        return new Section(activityTitle, activitySubtitle, Collections.emptyList());
+    }
+
+    private String getCauseSummary() {
+        List<Cause> causes = run.getCauses();
+
+        return causes.stream()
+                .map(cause -> cause.getShortDescription().concat(","))
+                .collect(joining(" "));
+    }
+
+    private String getDuration(boolean isRepeatedFailure) {
+        String durationString;
+        if (isRepeatedFailure) {
+            durationString = createBackToNormalDurationString();
+        } else {
+            durationString = run.getDurationString();
+        }
+        return durationString;
+    }
+
+    private String createBackToNormalDurationString() {
+        // This status code guarantees that the previous build fails and has been successful before
+        // The back to normal time is the time since the build first broke
+        Run previousSuccessfulBuild = run.getPreviousSuccessfulBuild();
+        if (null != previousSuccessfulBuild && null != previousSuccessfulBuild.getNextBuild()) {
+            Run initialFailureAfterPreviousSuccessfulBuild = previousSuccessfulBuild.getNextBuild();
+            if (initialFailureAfterPreviousSuccessfulBuild != null) {
+                long initialFailureStartTime = initialFailureAfterPreviousSuccessfulBuild.getStartTimeInMillis();
+                long initialFailureDuration = initialFailureAfterPreviousSuccessfulBuild.getDuration();
+                long initialFailureEndTime = initialFailureStartTime + initialFailureDuration;
+                long buildStartTime = run.getStartTimeInMillis();
+                long buildDuration = run.getDuration();
+                long buildEndTime = buildStartTime + buildDuration;
+                long backToNormalDuration = buildEndTime - initialFailureEndTime;
+                return getTimeSpanString(backToNormalDuration);
+            }
+        }
+        return null;
+    }
+
+    public String getTestSummary() {
+        AbstractTestResultAction<?> action = this.run
+                .getAction(AbstractTestResultAction.class);
+        if (action != null) {
+            int total = action.getTotalCount();
+            int failed = action.getFailCount();
+            int skipped = action.getSkipCount();
+            return "Test status: passed " + (total - failed - skipped) + ", failed: " + failed + ", skipped: " + skipped;
+        } else {
+            return "No tests found.";
+        }
     }
 
     private boolean isRepeatedFailure(Result previousResult, Run lastNotFailedBuild) {

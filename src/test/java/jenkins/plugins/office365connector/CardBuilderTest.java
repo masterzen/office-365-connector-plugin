@@ -1,17 +1,6 @@
 package jenkins.plugins.office365connector;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.powermock.api.mockito.PowerMockito.mock;
-import static org.powermock.api.mockito.PowerMockito.when;
-
-import java.util.Collections;
-
-import hudson.model.AbstractBuild;
-import hudson.model.ItemGroup;
-import hudson.model.Job;
-import hudson.model.Result;
-import hudson.model.Run;
-import hudson.model.TaskListener;
+import hudson.model.*;
 import jenkins.plugins.office365connector.model.Card;
 import jenkins.plugins.office365connector.model.Section;
 import jenkins.plugins.office365connector.workflow.AbstractTest;
@@ -22,6 +11,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.modules.junit4.PowerMockRunner;
+
+import java.util.Collections;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.powermock.api.mockito.PowerMockito.mock;
+import static org.powermock.api.mockito.PowerMockito.when;
 
 @RunWith(PowerMockRunner.class)
 public class CardBuilderTest extends AbstractTest {
@@ -64,7 +59,7 @@ public class CardBuilderTest extends AbstractTest {
         assertThat(card.getSections()).hasSize(1);
         assertThat(card.getThemeColor()).isEqualTo("3479BF");
         Section section = card.getSections().get(0);
-        assertThat(section.getActivityTitle()).isEqualTo("Notification from " + JOB_DISPLAY_NAME);
+        assertThat(section.getActivityTitle()).isEqualTo("_myJobDisplayName_ - #7 *Started*");
     }
 
     @Test
@@ -83,7 +78,7 @@ public class CardBuilderTest extends AbstractTest {
         assertThat(card.getSections()).hasSize(1);
         assertThat(card.getThemeColor()).isEqualTo(result.color.getHtmlBaseColor());
         Section section = card.getSections().get(0);
-        assertThat(section.getActivityTitle()).isEqualTo("Notification from " + JOB_DISPLAY_NAME);
+        assertThat(section.getActivityTitle()).isEqualTo("_myJobDisplayName_ - #7 *Build Aborted*");
     }
 
     @Test
@@ -98,9 +93,9 @@ public class CardBuilderTest extends AbstractTest {
 
         // then
         assertThat(card.getSections()).hasSize(1);
-        assertThat(card.getThemeColor()).isEqualTo(result.color.getHtmlBaseColor());
+        assertThat(card.getThemeColor()).isEqualTo("#a3020c");
         Section section = card.getSections().get(0);
-        assertThat(section.getActivityTitle()).isEqualTo("Notification from " + JOB_DISPLAY_NAME);
+        assertThat(section.getActivityTitle()).isEqualTo("_myJobDisplayName_ - #7 *Build Failed*");
     }
 
     @Test
@@ -120,17 +115,16 @@ public class CardBuilderTest extends AbstractTest {
         when(previousNotFailedBuild.getNextBuild()).thenReturn(previousNotFailedBuild);
         when(run.getPreviousNotFailedBuild()).thenReturn(previousNotFailedBuild);
 
+        when(run.getPreviousSuccessfulBuild()).thenReturn(previousNotFailedBuild);
+
         // when
         Card card = cardBuilder.createCompletedCard(Collections.emptyList());
 
         // then
         assertThat(card.getSections()).hasSize(1);
-        assertThat(card.getThemeColor()).isEqualTo(result.color.getHtmlBaseColor());
+        assertThat(card.getThemeColor()).isEqualTo("#a3020c");
         Section section = card.getSections().get(0);
-        assertThat(section.getActivityTitle()).isEqualTo("Notification from " + JOB_DISPLAY_NAME);
-        FactAssertion.assertThatLast(section.getFacts(), 2)
-                .hasName(FactsBuilder.NAME_FAILING_SINCE_BUILD)
-                .hasValue("build #" + previousNotFailedBuildNumber);
+        assertThat(section.getActivityTitle()).isEqualTo("_myJobDisplayName_ - #7 *Repeated Failure* after 0 ms");
     }
 
     @Test
@@ -155,13 +149,9 @@ public class CardBuilderTest extends AbstractTest {
 
         // then
         assertThat(card.getSections()).hasSize(1);
-        assertThat(card.getThemeColor()).isEqualTo(result.color.getHtmlBaseColor());
+        assertThat(card.getThemeColor()).isEqualTo("#a3020c");
         Section section = card.getSections().get(0);
-        assertThat(section.getActivityTitle()).isEqualTo("Notification from " + JOB_DISPLAY_NAME);
-        FactAssertion.assertThatLast(section.getFacts(), 1);
-        FactAssertion.assertThat(section.getFacts())
-                .hasName(FactsBuilder.NAME_STATUS)
-                .hasValue("Build Failed");
+        assertThat(section.getActivityTitle()).isEqualTo("_myJobDisplayName_ - #7 *Build Failed*");
     }
 
 
@@ -509,7 +499,7 @@ public class CardBuilderTest extends AbstractTest {
     public void getCardThemeColor_OnSuccessResult_ReturnsGreen() {
         // given
         Result successResult = Result.SUCCESS;
-        String greenColorString = "#00FF00";
+        String greenColorString = "#2eb886";
 
         // when
         String themeColor = Deencapsulation.invoke(CardBuilder.class, "getCardThemeColor", successResult);
@@ -535,7 +525,7 @@ public class CardBuilderTest extends AbstractTest {
     public void getCardThemeColor_OnFailureResult_ReturnsBallColor() {
         // given
         Result failureResult = Result.FAILURE;
-        String ballColorString = Result.FAILURE.color.getHtmlBaseColor();
+        String ballColorString = "#a3020c";
 
         // when
         String themeColor = Deencapsulation.invoke(CardBuilder.class, "getCardThemeColor", failureResult);

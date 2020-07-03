@@ -13,13 +13,6 @@
  */
 package jenkins.plugins.office365connector;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import hudson.ProxyConfiguration;
 import jenkins.model.Jenkins;
 import org.apache.commons.httpclient.HttpClient;
@@ -30,6 +23,13 @@ import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.RequestEntity;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.apache.commons.lang.StringUtils;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Makes http post requests in a separate thread.
@@ -70,7 +70,7 @@ public class HttpWorker implements Runnable {
             RequestEntity requestEntity;
             try {
                 // uncomment to log what message has been sent
-                // log("Posted JSON: %s", data);
+                log("Posted JSON: %s", data);
                 requestEntity = new StringRequestEntity(data, "application/json", StandardCharsets.UTF_8.name());
             } catch (UnsupportedEncodingException e) {
                 e.printStackTrace(logger);
